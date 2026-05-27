@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.soundcore-battery"
+          path="/org/gnome/shell/extensions/soundcore-battery/">
+    <key type="i" name="poll-interval">
+      <default>30</default>
+      <summary>Poll interval in seconds</summary>
+    </key>
+    <key type="s" name="label-format">
+      <default>'{left}-{right}-{case}'</default>
+      <summary>Label format string</summary>
+    </key>
+    <key type="b" name="hide-icon">
+      <default>true</default>
+      <summary>Hide icon when device disconnected</summary>
+    </key>
+    <key type="s" name="blank-label-format">
+      <default>'...'</default>
+      <summary>Blank label format string</summary>
+    </key>
+  </schema>
+</schemalist>

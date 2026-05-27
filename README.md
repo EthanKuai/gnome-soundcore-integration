@@ -1,6 +1,6 @@
 # GNOME Soundcore Integration
 
-> [!info] A [GNOME](https://www.gnome.org/) extension to display Soundcore headphone's battery levels as a GNOME tray icon.
+A [GNOME](https://www.gnome.org/) extension to display Soundcore headphone's battery levels as a GNOME tray icon.
 
 ## Dependencies
 
@@ -8,10 +8,12 @@ This project utilises [OpenSCQ](https://github.com/Oppzippy/OpenSCQ30/) to commu
 
 ```bash
 # Install openscq30-cli
-mkdir -p ~/.local/bin
-curl -L https://github.com/Oppzippy/OpenSCQ30/releases/latest/download/openscq30-cli-linux-x86_64 -o ~/.local/bin/openscq30-cli
-chmod +x ~/.local/bin/openscq30-cli
+mkdir -p $HOME/.local/bin
+curl -L https://github.com/Oppzippy/OpenSCQ30/releases/latest/download/openscq30-cli-linux-x86_64 -o $HOME/.local/bin/openscq30-cli
+chmod +x $HOME/.local/bin/openscq30-cli
 ```
+
+This assumes `~/.local/bin/` is already added to your PATH, which should be default.
 
 Additionally, ensure your GNOME environment has support for extensions & `AppIndicator and KStatusNotifierItem Support` for tray icons.
 
@@ -34,7 +36,7 @@ If on Wayland, log-out & back in. If on X11, run `busctl --user call org.gnome.S
 
 ### Enable
 
-``bash
+```bash
 gnome-extensions enable soundcore-integration@ethankuai
 gnome-extensions prefs soundcore-integration@ethankuai
 ```

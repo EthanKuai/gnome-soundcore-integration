@@ -1,7 +1,13 @@
 {
-  "name": "Soundcore Battery",
+  "name": "Soundcore Integration",
   "description": "Shows Soundcore Liberty 4 NC battery levels",
-  "uuid": "soundcore-battery@local",
+  "uuid": "soundcore-integration@ethankuai",
   "settings-schema": "org.gnome.shell.extensions.soundcore-battery",
-  "shell-version": ["46", "47", "48", "49", "50"]
+  "shell-version": [
+    "46",
+    "47",
+    "48",
+    "49",
+    "50"
+  ]
 }

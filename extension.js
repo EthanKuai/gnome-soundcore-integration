@@ -3,14 +3,14 @@ import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
-import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 
 export default class SoundcoreBatteryExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._indicator = new PanelMenu.Button(0.0, 'Soundcore Battery', false);
         let box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
-        
+
         const iconTheme = St.IconTheme.new();
         const iconName = ['audio-headphones-symbolic', 'audio-headset-symbolic', 'audio-card-symbolic']
             .find(name => iconTheme.has_icon(name));
@@ -33,14 +33,13 @@ export default class SoundcoreBatteryExtension extends Extension {
             y_align: 2,
             style: 'padding-left: 1px;'
         });
-        
+
         box.add_child(this._icon);
         box.add_child(this._label);
         this._indicator.add_child(box);
         Main.panel.addToStatusArea('soundcore-battery', this._indicator);
 
-        this._mac = this._getMac();
-        this.disconnected();
+        this._isDisconnected();
         this._update();
         this._startTimer();
         this._watchBluetooth();

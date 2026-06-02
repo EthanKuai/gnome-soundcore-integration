@@ -1,4 +1,6 @@
 import Adw from 'gi://Adw';
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
@@ -12,10 +14,29 @@ export default class SoundcoreBatteryPreferences extends ExtensionPreferences {
         });
         window.add(page);
 
-        const group = new Adw.PreferencesGroup({
+        // -----------------------------------------------------
+
+        const groupDevice = new Adw.PreferencesGroup({
+            title: 'Device',
+        });
+        page.add(groupDevice);
+
+        // Device model
+        const model = new Adw.EntryRow({
+            title: 'Device Model',
+            text: settings.get_string('model'),
+        });
+        model.connect('changed', () => {
+            settings.set_string('model', model.get_text());
+        });
+        groupDevice.add(model);
+
+        // -----------------------------------------------------
+
+        const groupDisplay = new Adw.PreferencesGroup({
             title: 'Display',
         });
-        page.add(group);
+        page.add(groupDisplay);
 
         // Poll interval
         const intervalRow = new Adw.SpinRow({
@@ -28,7 +49,7 @@ export default class SoundcoreBatteryPreferences extends ExtensionPreferences {
             }),
         });
         settings.bind('poll-interval', intervalRow, 'value', 0);
-        group.add(intervalRow);
+        groupDisplay.add(intervalRow);
 
         // Label format
         const formatRow = new Adw.EntryRow({
@@ -50,16 +71,16 @@ export default class SoundcoreBatteryPreferences extends ExtensionPreferences {
             formatRow.set_text(settings.get_string('label-format'));
         });
         formatRow.add_suffix(resetButton);
-        group.add(formatRow);
-        
+        groupDisplay.add(formatRow);
+
         // Hide when disconnected
         const hideRow = new Adw.SwitchRow({
             title: 'Hide icon',
             subtitle: 'Hide icon when device disconnected',
         });
         settings.bind('hide-icon', hideRow, 'active', 0);
-        group.add(hideRow);
-        
+        groupDisplay.add(hideRow);
+
         // Blank label format
         const formatBlankRow = new Adw.EntryRow({
             title: 'Blank label Format',
@@ -80,6 +101,47 @@ export default class SoundcoreBatteryPreferences extends ExtensionPreferences {
             formatBlankRow.set_text(settings.get_string('blank-label-format'));
         });
         formatBlankRow.add_suffix(resetBlankButton);
-        group.add(formatBlankRow);
+        groupDisplay.add(formatBlankRow);
+
+        // -----------------------------------------------------
+
+        const groupDebug = new Adw.PreferencesGroup({
+            title: 'Debug',
+        });
+        page.add(groupDebug);
+
+        const cliFound = GLib.find_program_in_path('openscq30-cli') !== null;
+        const cliRow = new Adw.ActionRow({
+            title: 'openscq30-cli',
+            subtitle: cliFound ? 'openscq30-cli found' : 'openscq30-cli is not installed or not in PATH. See README for instructions.',
+            icon_name: cliFound ? 'object-select-symbolic' : 'dialog-warning-symbolic',
+        });
+        if (!cliFound)
+            cliRow.add_css_class('error');
+        groupDebug.add(cliRow);
+
+        try {
+            let proc = Gio.Subprocess.new(
+                ['bash', '-c', "openscq30-cli list-models -j"],
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
+            );
+            let [, stdout] = proc.communicate_utf8(null, null);
+            if (stdout.trim()) {
+                const models = JSON.parse(stdout);
+                const modelList = new Adw.ComboRow({
+                    title: 'Detected Models',
+                });
+                modelList.set_model(models);
+                modelList.set_active_id(settings.get_string('model'));
+                modelList.connect('changed', () => {
+                    let [success, iter] = modelList.get_active();
+                    if (success) {
+                        let model = modelList.get_model().get(iter, 0)[0];
+                        settings.set_string('model', model);
+                    }
+                });
+                groupDebug.add(modelList);
+            }
+        } catch (e) { }
     }
 }

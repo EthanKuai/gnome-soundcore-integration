@@ -2,6 +2,10 @@
 
 A [GNOME](https://www.gnome.org/) extension to display Soundcore headphone's battery levels as a GNOME tray icon.
 
+![default](src/default.png)
+![custom](src/custom.png)
+> Customisable string format
+
 ## Dependencies
 
 This project utilises [OpenSCQ](https://github.com/Oppzippy/OpenSCQ30/) to communicate with Soundcore headphones. OpenSCQ30-cli will need to be installed:

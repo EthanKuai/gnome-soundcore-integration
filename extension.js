@@ -98,9 +98,9 @@ export default class SoundcoreBatteryExtension extends Extension {
         GLib.idle_add(GLib.PRIORITY_LOW, () => {
             let proc = Gio.Subprocess.new(
                 ['openscq30-cli', 'device', '--mac-address', this._mac,
-                 'setting', '--get', 'batteryLevelLeft',
-                 '--get', 'batteryLevelRight',
-                 '--get', 'caseBatteryLevel'],
+                    'setting', '--get', 'batteryLevelLeft',
+                    '--get', 'batteryLevelRight',
+                    '--get', 'caseBatteryLevel'],
                 Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
             );
             proc.communicate_utf8_async(null, null, (proc, res) => {
@@ -115,16 +115,16 @@ export default class SoundcoreBatteryExtension extends Extension {
                     let c = parse('caseBatteryLevel');
                     if (l !== null && r !== null && c !== null) {
                         let fmt = this._settings.get_string('label-format');
-                        this._indicator.show();
                         this._label.set_text(fmt
                             .replace('{left}', l)
                             .replace('{right}', r)
                             .replace('{case}', c));
+                        this._indicator.show();
                     } else {
-                        this.disconnected();
+                        this._isDisconnected();
                     }
-                } catch(e) {
-                    this.disconnected();
+                } catch (e) {
+                    this._isDisconnected();
                 }
             });
             return GLib.SOURCE_REMOVE;
@@ -145,8 +145,8 @@ export default class SoundcoreBatteryExtension extends Extension {
             this._timeout = null;
         }
     }
-    
-    disconnected() {
+
+    _isDisconnected() {
         if (this._settings.get_boolean('hide-icon')) {
             this._indicator.hide();
         } else {

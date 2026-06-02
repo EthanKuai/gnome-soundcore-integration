@@ -111,17 +111,25 @@ export default class SoundcoreBatteryExtension extends Extension {
     _getMac() {
         try {
             let proc = Gio.Subprocess.new(
-                ['bash', '-c', "bluetoothctl devices | grep -i 'liberty 4 nc' | sed -E 's|Device ([^ ]+) .+|\\1|'"],
+                ['bash', '-c', `bluetoothctl devices | grep -i '${this._settings.get_string('model')}' | sed -E 's|Device ([^ ]+) .+|\\1|'`],
                 // ['bash', '-c', "openscq30-cli paired-devices list | grep -oP '([0-9A-F]{2}:){5}[0-9A-F]{2}'"],
                 Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
             );
             let [, stdout] = proc.communicate_utf8(null, null);
             return stdout.trim();
-        } catch (e) { return null; }
+        } catch (e) {
+            // no device
+            return null;
+        }
     }
 
     _update() {
-        if (!this._mac) return;
+        this._mac = this._getMac();
+        if (!this._mac) {
+            this._isDisconnected();
+            return;
+        }
+
         GLib.idle_add(GLib.PRIORITY_LOW, () => {
             let proc = Gio.Subprocess.new(
                 ['openscq30-cli', 'device', '--mac-address', this._mac,

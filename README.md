@@ -33,7 +33,7 @@ mkdir -p $EXTDIR
 git clone https://github.com/EthanKuai/gnome-soundcore-integration.git $EXTDIR
 
 # Compile
-glib-compile-schemas ~/.local/share/gnome-shell/extensions/soundcore-battery@local/schemas/
+glib-compile-schemas $EXTDIR/schemas/
 ```
 
 If on Wayland, log-out & back in. If on X11, run `busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell Eval s 'Meta.restart("Restarting…", global.context)'`.
@@ -41,6 +41,12 @@ If on Wayland, log-out & back in. If on X11, run `busctl --user call org.gnome.S
 ### Enable
 
 ```bash
+# Add earpiece to CLI
+MODEL=$(openscq30-cli list-models | grep -i "liberty 4 nc" | sed -E 's| .+||')
+MAC=$(bluetoothctl devices | grep -i 'liberty 4 nc' | sed -E 's|Device ([^ ]+) .+|\1|')
+openscq30-cli paired-devices add --mac-address $MAC --model $MODEL
+
+# Enable
 gnome-extensions enable soundcore-integration@ethankuai
 gnome-extensions prefs soundcore-integration@ethankuai
 ```

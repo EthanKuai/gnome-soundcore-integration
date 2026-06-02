@@ -2,21 +2,24 @@ import St from 'gi://St';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 
 export default class SoundcoreBatteryExtension extends Extension {
     enable() {
+        this._setup();
+
         this._settings = this.getSettings();
         this._indicator = new PanelMenu.Button(0.0, 'Soundcore Battery', false);
         let box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
 
         const iconTheme = St.IconTheme.new();
-        const iconName = ['audio-headphones-symbolic', 'audio-headset-symbolic', 'audio-card-symbolic']
+        this._iconName = ['audio-headphones-symbolic', 'audio-headset-symbolic', 'audio-card-symbolic']
             .find(name => iconTheme.has_icon(name));
-        if (iconName) {
+        if (this._iconName) {
             this._icon = new St.Icon({
-                icon_name: iconName,
+                icon_name: this._iconName,
                 style_class: 'system-status-icon',
                 style: 'padding: 0px; margin: 0px;',
             });
@@ -59,6 +62,31 @@ export default class SoundcoreBatteryExtension extends Extension {
         });
     }
 
+    // backend
+    _setup() {
+        // check CLI exists, warn otherwise (only warn on enable)
+        const cliFound = GLib.find_program_in_path('openscq30-cli') !== null;
+        if (!cliFound) {
+            this._show_cli_error();
+            return;
+        }
+    }
+
+    _show_cli_error() {
+        let source = new MessageTray.Source({
+            title: 'Soundcore Battery',
+            icon_name: this._iconName ? this._iconName : '🎧',
+        });
+        Main.messageTray.add(source);
+
+        let notification = new MessageTray.Notification({
+            source,
+            title: 'Soundcore Integration: CLI not found',
+            body: 'openscq30-cli is not installed or not in PATH. See README for instructions.',
+        });
+        source.addNotification(notification);
+    }
+
     _watchBluetooth() {
         this._dbusConn = Gio.bus_get_sync(Gio.BusType.SYSTEM, null);
         this._dbusConn.signal_subscribe(
@@ -69,8 +97,7 @@ export default class SoundcoreBatteryExtension extends Extension {
             null,
             Gio.DBusSignalFlags.NONE,
             (conn, sender, path, iface, signal, params) => {
-                let [changedIface, changedProps] = [params.get_child_value(0).get_string()[0],
-                                                    params.get_child_value(1)];
+                let [changedIface, changedProps] = [params.get_child_value(0).get_string()[0], params.get_child_value(1)];
                 if (changedIface === 'org.bluez.Device1') {
                     let connected = changedProps.lookup_value('Connected', null);
                     if (connected !== null) {
@@ -90,7 +117,7 @@ export default class SoundcoreBatteryExtension extends Extension {
             );
             let [, stdout] = proc.communicate_utf8(null, null);
             return stdout.trim();
-        } catch(e) { return null; }
+        } catch (e) { return null; }
     }
 
     _update() {

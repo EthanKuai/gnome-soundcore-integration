@@ -42,6 +42,7 @@ export default class SoundcoreBatteryExtension extends Extension {
         this._indicator.add_child(box);
         Main.panel.addToStatusArea('soundcore-battery', this._indicator);
 
+        this._mac = this._getMac();
         this._isDisconnected();
         this._update();
         this._startTimer();

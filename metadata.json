@@ -1,6 +1,6 @@
 {
   "name": "Soundcore Integration",
-  "description": "Shows Soundcore Liberty 4 NC battery levels",
+  "description": "Shows battery levels for devices supported by OpenSCQ30",
   "uuid": "soundcore-integration@ethankuai",
   "settings-schema": "org.gnome.shell.extensions.soundcore-battery",
   "shell-version": [

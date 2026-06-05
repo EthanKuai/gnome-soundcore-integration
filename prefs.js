@@ -35,6 +35,7 @@ export default class SoundcoreBatteryPreferences extends ExtensionPreferences {
             title: 'Label Format',
             text: settings.get_string('label-format'),
         });
+        formatRow.set_tooltip_text('Leave empty for automatic formatting. Placeholders: {battery}, {left}, {right}, {case}. Unavailable values show as -.');
         formatRow.connect('changed', () => {
             settings.set_string('label-format', formatRow.get_text());
         });

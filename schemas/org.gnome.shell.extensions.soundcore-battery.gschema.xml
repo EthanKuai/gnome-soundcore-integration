@@ -7,8 +7,8 @@
       <summary>Poll interval in seconds</summary>
     </key>
     <key type="s" name="label-format">
-      <default>'L:{left}% R:{right}% C:{case}%'</default>
-      <summary>Label format string</summary>
+      <default>''</default>
+      <summary>Label format string (empty for automatic formatting)</summary>
     </key>
     <key type="b" name="hide-icon">
       <default>true</default>

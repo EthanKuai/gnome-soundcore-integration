@@ -11,6 +11,8 @@ export default class SoundcoreBatteryExtension extends Extension {
         this._setup();
 
         this._settings = this.getSettings();
+        this._cancellable = new Gio.Cancellable();
+        this._updating = false;
         this._indicator = new PanelMenu.Button(0.0, 'Soundcore Battery', false);
         let box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
 
@@ -42,11 +44,10 @@ export default class SoundcoreBatteryExtension extends Extension {
         this._indicator.add_child(box);
         Main.panel.addToStatusArea('soundcore-battery', this._indicator);
 
-        this._mac = this._getMac();
         this._isDisconnected();
+        this._watchBluetooth();
         this._update();
         this._startTimer();
-        this._watchBluetooth();
 
         this._settings.connect('changed::poll-interval', () => {
             this._stopTimer();
@@ -66,8 +67,9 @@ export default class SoundcoreBatteryExtension extends Extension {
     // backend
     _setup() {
         // check CLI exists, warn otherwise (only warn on enable)
-        const cliFound = GLib.find_program_in_path('openscq30-cli') !== null;
-        if (!cliFound) {
+        this._cli = GLib.find_program_in_path('openscq30-cli')
+            ?? GLib.find_program_in_path('openscq30');
+        if (!this._cli) {
             this._show_cli_error();
             return;
         }
@@ -83,14 +85,14 @@ export default class SoundcoreBatteryExtension extends Extension {
         let notification = new MessageTray.Notification({
             source,
             title: 'Soundcore Integration: CLI not found',
-            body: 'openscq30-cli is not installed or not in PATH. See README for instructions.',
+            body: 'openscq30-cli or openscq30 is not installed or not in PATH. See README for instructions.',
         });
         source.addNotification(notification);
     }
 
     _watchBluetooth() {
         this._dbusConn = Gio.bus_get_sync(Gio.BusType.SYSTEM, null);
-        this._dbusConn.signal_subscribe(
+        this._bluetoothSignal = this._dbusConn.signal_subscribe(
             'org.bluez',
             'org.freedesktop.DBus.Properties',
             'PropertiesChanged',
@@ -109,54 +111,120 @@ export default class SoundcoreBatteryExtension extends Extension {
         );
     }
 
-    _getMac() {
-        try {
+    _runCli(args, cancellable) {
+        return new Promise((resolve, reject) => {
             let proc = Gio.Subprocess.new(
-                ['bash', '-c', "bluetoothctl devices | grep -i 'liberty 4 nc' | sed -E 's|Device ([^ ]+) .+|\\1|'"],
-                // ['bash', '-c', "openscq30-cli paired-devices list | grep -oP '([0-9A-F]{2}:){5}[0-9A-F]{2}'"],
+                [this._cli, ...args, '--json'],
                 Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
             );
-            let [, stdout] = proc.communicate_utf8(null, null);
-            return stdout.trim();
-        } catch (e) { return null; }
-    }
-
-    _update() {
-        if (!this._mac) return;
-        GLib.idle_add(GLib.PRIORITY_LOW, () => {
-            let proc = Gio.Subprocess.new(
-                ['openscq30-cli', 'device', '--mac-address', this._mac,
-                    'setting', '--get', 'batteryLevelLeft',
-                    '--get', 'batteryLevelRight',
-                    '--get', 'caseBatteryLevel'],
-                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
-            );
-            proc.communicate_utf8_async(null, null, (proc, res) => {
+            proc.communicate_utf8_async(null, cancellable, (proc, res) => {
                 try {
                     let [, stdout] = proc.communicate_utf8_finish(res);
-                    let parse = (key) => {
-                        let m = new RegExp(key + '\\s+(\\d+)/(\\d+)').exec(stdout);
-                        return m ? Math.round(parseInt(m[1]) / parseInt(m[2]) * 100) : null;
-                    };
-                    let l = parse('batteryLevelLeft');
-                    let r = parse('batteryLevelRight');
-                    let c = parse('caseBatteryLevel');
-                    if (l !== null && r !== null && c !== null) {
-                        let fmt = this._settings.get_string('label-format');
-                        this._label.set_text(fmt
-                            .replace('{left}', l)
-                            .replace('{right}', r)
-                            .replace('{case}', c));
-                        this._indicator.show();
-                    } else {
-                        this._isDisconnected();
-                    }
+                    if (!proc.get_successful())
+                        throw new Error('OpenSCQ30 command failed');
+                    resolve(JSON.parse(stdout));
                 } catch (e) {
-                    this._isDisconnected();
+                    proc.force_exit();
+                    reject(e);
                 }
             });
-            return GLib.SOURCE_REMOVE;
         });
+    }
+
+    async _getDevices(cancellable) {
+        const paired = await this._runCli(['paired-devices', 'list'], cancellable);
+        const objects = await new Promise((resolve, reject) => {
+            this._dbusConn.call(
+                'org.bluez', '/', 'org.freedesktop.DBus.ObjectManager',
+                'GetManagedObjects', null, null, Gio.DBusCallFlags.NONE, -1,
+                cancellable, (conn, res) => {
+                    try {
+                        resolve(conn.call_finish(res).deepUnpack()[0]);
+                    } catch (e) {
+                        reject(e);
+                    }
+                }
+            );
+        });
+        const connected = new Set();
+        for (const interfaces of Object.values(objects)) {
+            const device = interfaces['org.bluez.Device1'];
+            if (device?.Connected?.get_boolean())
+                connected.add(device.Address.get_string()[0].toUpperCase());
+        }
+        return paired.filter(device => !device.isDemo
+            && connected.has(device.macAddress.toUpperCase()));
+    }
+
+    async _getBattery(mac, cancellable) {
+        const fields = {
+            batteryLevel: 'battery',
+            batteryLevelLeft: 'left',
+            batteryLevelRight: 'right',
+            caseBatteryLevel: 'case',
+        };
+        const deviceArgs = ['device', '--mac-address', mac];
+        const settings = await this._runCli([
+            ...deviceArgs, 'list-settings', '--no-categories',
+        ], cancellable);
+        const ids = Object.keys(fields).filter(id => Object.hasOwn(settings, id));
+        if (ids.length === 0)
+            return {};
+
+        const values = await this._runCli([
+            ...deviceArgs, 'setting', ...ids.flatMap(id => ['--get', id]),
+        ], cancellable);
+        const battery = {};
+        for (const { settingId, value } of values) {
+            const match = /^(\d+)\/(\d+)$/.exec(value.value);
+            if (Object.hasOwn(fields, settingId) && match
+                && Number(match[2]) > 0 && Number(match[1]) <= Number(match[2])) {
+                battery[fields[settingId]] = Math.round(Number(match[1]) / Number(match[2]) * 100);
+            }
+        }
+        return battery;
+    }
+
+    _formatBattery(battery) {
+        const format = this._settings.get_string('label-format');
+        if (format) {
+            return format.replace(/\{(battery|left|right|case)\}/g,
+                (_, field) => battery[field] ?? '-');
+        }
+        return Object.entries(battery).map(([field, value]) => {
+            const prefix = { battery: '', left: 'L:', right: 'R:', case: 'C:' }[field];
+            return `${prefix}${value}%`;
+        }).join(' ');
+    }
+
+    async _update() {
+        if (!this._cli || this._updating) return;
+        this._updating = true;
+        const cancellable = this._cancellable;
+        try {
+            const devices = await this._getDevices(cancellable);
+            for (const device of devices) {
+                try {
+                    const battery = await this._getBattery(device.macAddress, cancellable);
+                    if (cancellable.is_cancelled()) return;
+                    if (Object.keys(battery).length > 0) {
+                        this._label.set_text(this._formatBattery(battery));
+                        this._indicator.show();
+                        return;
+                    }
+                } catch (e) {
+                    if (cancellable.is_cancelled()) return;
+                }
+            }
+            if (!cancellable.is_cancelled())
+                this._isDisconnected();
+        } catch (e) {
+            if (!cancellable.is_cancelled())
+                this._isDisconnected();
+        } finally {
+            if (this._cancellable === cancellable)
+                this._updating = false;
+        }
     }
 
     _startTimer() {
@@ -185,12 +253,15 @@ export default class SoundcoreBatteryExtension extends Extension {
 
     disable() {
         this._stopTimer();
+        this._cancellable.cancel();
+        this._cancellable = null;
+        if (this._dbusConn) {
+            this._dbusConn.signal_unsubscribe(this._bluetoothSignal);
+            this._dbusConn = null;
+        }
         if (this._indicator) {
             this._indicator.destroy(); this._indicator = null;
         }
         this._settings = null;
-        if (this._dbusConn) {
-            this._dbusConn = null;
-        }
     }
 }

@@ -1,10 +1,14 @@
 # GNOME Soundcore Integration
 
-A [GNOME](https://www.gnome.org/) extension to display Soundcore headphone's battery levels as a GNOME tray icon.
+A [GNOME](https://www.gnome.org/) extension to display battery levels for devices supported by [OpenSCQ30](https://github.com/Oppzippy/OpenSCQ30/) as a GNOME tray icon.
 
 ![default](src/default.png)
 ![custom](src/custom.png)
 > Customisable string format
+
+The indicator uses the first connected device registered with OpenSCQ30 that provides battery readings. Devices are detected again on each poll and Bluetooth connection change.
+
+Leave Label Format empty to show the available battery levels automatically. Custom formats support `{battery}` for a single device battery, `{left}`, `{right}`, and `{case}`. Values are percentages; unavailable values show as `-`. For example, use `{battery}%` for headphones or `L:{left}% R:{right}% C:{case}%` for earbuds.
 
 ## Dependencies
 
@@ -40,12 +44,11 @@ If on Wayland, log-out & back in. If on X11, run `busctl --user call org.gnome.S
 
 ### Enable
 
-```bash
-# Add earpiece to CLI
-MODEL=$(openscq30-cli list-models | grep -i "liberty 4 nc" | sed -E 's| .+||')
-MAC=$(bluetoothctl devices | grep -i 'liberty 4 nc' | sed -E 's|Device ([^ ]+) .+|\1|')
-openscq30-cli paired-devices add --mac-address $MAC --model $MODEL
+Pair your device over Bluetooth, then register it with OpenSCQ30. Find its model ID with `openscq30-cli list-models` and its MAC address with `bluetoothctl devices`. Register it with `openscq30-cli paired-devices add --mac-address MAC --model MODEL`, replacing `MAC` and `MODEL` with those values.
 
+If your CLI is installed as `openscq30`, use that name instead of `openscq30-cli`. The extension accepts either name.
+
+```bash
 # Enable
 gnome-extensions enable soundcore-integration@ethankuai
 gnome-extensions prefs soundcore-integration@ethankuai

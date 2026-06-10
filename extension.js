@@ -4,6 +4,7 @@ import Gio from 'gi://Gio';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 
 export default class SoundcoreBatteryExtension extends Extension {
@@ -13,6 +14,7 @@ export default class SoundcoreBatteryExtension extends Extension {
         this._settings = this.getSettings();
         this._cancellable = new Gio.Cancellable();
         this._updating = false;
+        this._updatePending = false;
         this._indicator = new PanelMenu.Button(0.0, 'Soundcore Battery', false);
         let box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
 
@@ -43,6 +45,7 @@ export default class SoundcoreBatteryExtension extends Extension {
         box.add_child(this._label);
         this._indicator.add_child(box);
         Main.panel.addToStatusArea('soundcore-battery', this._indicator);
+        this._buildMenu();
 
         this._isDisconnected();
         this._watchBluetooth();
@@ -62,6 +65,29 @@ export default class SoundcoreBatteryExtension extends Extension {
         this._settings.connect('changed::hide-icon', () => {
             this._update();
         });
+    }
+
+    _buildMenu() {
+        this._deviceItem = new PopupMenu.PopupMenuItem('No connected device', { reactive: false });
+        this._indicator.menu.addMenuItem(this._deviceItem);
+        this._batterySection = new PopupMenu.PopupMenuSection();
+        this._indicator.menu.addMenuItem(this._batterySection);
+        this._indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        this._refreshItem = this._indicator.menu.addAction('Refresh now', () => this._update());
+        this._refreshItem.setSensitive(Boolean(this._cli));
+        this._indicator.menu.addAction('Preferences', () => this.openPreferences());
+    }
+
+    _showDevice(device, battery) {
+        this._deviceItem.label.set_text(device.name);
+        this._batterySection.removeAll();
+        const labels = { battery: 'Battery', left: 'Left earbud', right: 'Right earbud', case: 'Case' };
+        for (const [field, value] of Object.entries(battery)) {
+            this._batterySection.addMenuItem(new PopupMenu.PopupMenuItem(
+                `${labels[field]}: ${value}%`, { reactive: false }));
+        }
+        this._label.set_text(this._formatBattery(battery));
+        this._indicator.show();
     }
 
     // backend
@@ -146,14 +172,19 @@ export default class SoundcoreBatteryExtension extends Extension {
                 }
             );
         });
-        const connected = new Set();
+        const connected = new Map();
         for (const interfaces of Object.values(objects)) {
             const device = interfaces['org.bluez.Device1'];
             if (device?.Connected?.get_boolean())
-                connected.add(device.Address.get_string()[0].toUpperCase());
+                connected.set(device.Address.get_string()[0].toUpperCase(),
+                    device.Alias?.get_string()[0] ?? device.Name?.get_string()[0]);
         }
         return paired.filter(device => !device.isDemo
-            && connected.has(device.macAddress.toUpperCase()));
+            && connected.has(device.macAddress.toUpperCase()))
+            .map(device => ({
+                ...device,
+                name: connected.get(device.macAddress.toUpperCase()) || device.model,
+            }));
     }
 
     async _getBattery(mac, cancellable) {
@@ -198,7 +229,11 @@ export default class SoundcoreBatteryExtension extends Extension {
     }
 
     async _update() {
-        if (!this._cli || this._updating) return;
+        if (!this._cli) return;
+        if (this._updating) {
+            this._updatePending = true;
+            return;
+        }
         this._updating = true;
         const cancellable = this._cancellable;
         try {
@@ -208,8 +243,7 @@ export default class SoundcoreBatteryExtension extends Extension {
                     const battery = await this._getBattery(device.macAddress, cancellable);
                     if (cancellable.is_cancelled()) return;
                     if (Object.keys(battery).length > 0) {
-                        this._label.set_text(this._formatBattery(battery));
-                        this._indicator.show();
+                        this._showDevice(device, battery);
                         return;
                     }
                 } catch (e) {
@@ -222,8 +256,13 @@ export default class SoundcoreBatteryExtension extends Extension {
             if (!cancellable.is_cancelled())
                 this._isDisconnected();
         } finally {
-            if (this._cancellable === cancellable)
+            if (this._cancellable === cancellable) {
                 this._updating = false;
+                if (this._updatePending) {
+                    this._updatePending = false;
+                    this._update();
+                }
+            }
         }
     }
 
@@ -243,6 +282,8 @@ export default class SoundcoreBatteryExtension extends Extension {
     }
 
     _isDisconnected() {
+        this._deviceItem.label.set_text(this._cli ? 'No connected device' : 'OpenSCQ30 CLI not found');
+        this._batterySection.removeAll();
         if (this._settings.get_boolean('hide-icon')) {
             this._indicator.hide();
         } else {

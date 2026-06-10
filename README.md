@@ -8,6 +8,8 @@ A [GNOME](https://www.gnome.org/) extension to display battery levels for device
 
 The indicator uses the first connected device registered with OpenSCQ30 that provides battery readings. Devices are detected again on each poll and Bluetooth connection change.
 
+Open the panel menu to see the device name and each available battery reading, refresh the readings, or open Preferences.
+
 Leave Label Format empty to show the available battery levels automatically. Custom formats support `{battery}` for a single device battery, `{left}`, `{right}`, and `{case}`. Values are percentages; unavailable values show as `-`. For example, use `{battery}%` for headphones or `L:{left}% R:{right}% C:{case}%` for earbuds.
 
 ## Dependencies

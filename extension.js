@@ -65,17 +65,40 @@ export default class SoundcoreBatteryExtension extends Extension {
         this._settings.connect('changed::hide-icon', () => {
             this._update();
         });
+        this._settings.connect('changed::preferred-device', () => {
+            this._update();
+        });
     }
 
     _buildMenu() {
         this._deviceItem = new PopupMenu.PopupMenuItem('No connected device', { reactive: false });
         this._indicator.menu.addMenuItem(this._deviceItem);
+        this._deviceSelector = new PopupMenu.PopupSubMenuMenuItem('Preferred device');
+        this._indicator.menu.addMenuItem(this._deviceSelector);
         this._batterySection = new PopupMenu.PopupMenuSection();
         this._indicator.menu.addMenuItem(this._batterySection);
         this._indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         this._refreshItem = this._indicator.menu.addAction('Refresh now', () => this._update());
         this._refreshItem.setSensitive(Boolean(this._cli));
         this._indicator.menu.addAction('Preferences', () => this.openPreferences());
+    }
+
+    _updateDeviceMenu(devices) {
+        this._deviceSelector.menu.removeAll();
+        const preferred = this._settings.get_string('preferred-device');
+        const automatic = this._deviceSelector.menu.addAction('Automatic', () => {
+            this._settings.set_string('preferred-device', '');
+        });
+        automatic.setOrnament(preferred ? PopupMenu.Ornament.NONE : PopupMenu.Ornament.CHECK);
+        for (const device of devices) {
+            const status = device.connected ? '' : ' (disconnected)';
+            const item = this._deviceSelector.menu.addAction(
+                `${device.name} — ${device.macAddress}${status}`, () => {
+                    this._settings.set_string('preferred-device', device.macAddress);
+                });
+            item.setOrnament(device.macAddress === preferred
+                ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
+        }
     }
 
     _showDevice(device, battery) {
@@ -172,19 +195,26 @@ export default class SoundcoreBatteryExtension extends Extension {
                 }
             );
         });
-        const connected = new Map();
+        const bluetooth = new Map();
         for (const interfaces of Object.values(objects)) {
             const device = interfaces['org.bluez.Device1'];
-            if (device?.Connected?.get_boolean())
-                connected.set(device.Address.get_string()[0].toUpperCase(),
-                    device.Alias?.get_string()[0] ?? device.Name?.get_string()[0]);
+            if (device) {
+                bluetooth.set(device.Address.get_string()[0].toUpperCase(), {
+                    name: device.Alias?.get_string()[0] ?? device.Name?.get_string()[0],
+                    connected: device.Connected?.get_boolean() ?? false,
+                });
+            }
         }
-        return paired.filter(device => !device.isDemo
-            && connected.has(device.macAddress.toUpperCase()))
-            .map(device => ({
+        return paired.filter(device => !device.isDemo).map(device => {
+            const macAddress = device.macAddress.toUpperCase();
+            const info = bluetooth.get(macAddress);
+            return {
                 ...device,
-                name: connected.get(device.macAddress.toUpperCase()) || device.model,
-            }));
+                macAddress,
+                name: info?.name || device.model,
+                connected: info?.connected ?? false,
+            };
+        });
     }
 
     async _getBattery(mac, cancellable) {
@@ -236,24 +266,34 @@ export default class SoundcoreBatteryExtension extends Extension {
         }
         this._updating = true;
         const cancellable = this._cancellable;
+        const preferred = this._settings.get_string('preferred-device');
         try {
             const devices = await this._getDevices(cancellable);
-            for (const device of devices) {
+            if (cancellable.is_cancelled()
+                || preferred !== this._settings.get_string('preferred-device')) return;
+            this._updateDeviceMenu(devices);
+            const connected = devices.filter(device => device.connected);
+            connected.sort((a, b) => Number(b.macAddress === preferred) - Number(a.macAddress === preferred));
+            for (const device of connected) {
                 try {
                     const battery = await this._getBattery(device.macAddress, cancellable);
-                    if (cancellable.is_cancelled()) return;
+                    if (cancellable.is_cancelled()
+                        || preferred !== this._settings.get_string('preferred-device')) return;
                     if (Object.keys(battery).length > 0) {
                         this._showDevice(device, battery);
                         return;
                     }
                 } catch (e) {
-                    if (cancellable.is_cancelled()) return;
+                    if (cancellable.is_cancelled()
+                        || preferred !== this._settings.get_string('preferred-device')) return;
                 }
             }
-            if (!cancellable.is_cancelled())
+            if (!cancellable.is_cancelled()
+                && preferred === this._settings.get_string('preferred-device'))
                 this._isDisconnected();
         } catch (e) {
-            if (!cancellable.is_cancelled())
+            if (!cancellable.is_cancelled()
+                && preferred === this._settings.get_string('preferred-device'))
                 this._isDisconnected();
         } finally {
             if (this._cancellable === cancellable) {

@@ -6,7 +6,7 @@ A [GNOME](https://www.gnome.org/) extension to display battery levels for device
 ![custom](src/custom.png)
 > Customisable string format
 
-The indicator uses the first connected device registered with OpenSCQ30 that provides battery readings. Devices are detected again on each poll and Bluetooth connection change.
+The indicator uses the first connected device registered with OpenSCQ30 that provides battery readings. Select a preferred device in the panel menu to remember it across sessions. If it disconnects or cannot provide battery readings, another connected device is used until the preferred device is available again. Select Automatic to clear the preference. Devices are detected again on each poll and Bluetooth connection change.
 
 Open the panel menu to see the device name and each available battery reading, refresh the readings, or open Preferences.
 

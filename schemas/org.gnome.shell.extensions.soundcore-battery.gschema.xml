@@ -10,6 +10,10 @@
       <default>''</default>
       <summary>Label format string (empty for automatic formatting)</summary>
     </key>
+    <key type="s" name="preferred-device">
+      <default>''</default>
+      <summary>Preferred device MAC address (empty for automatic selection)</summary>
+    </key>
     <key type="b" name="hide-icon">
       <default>true</default>
       <summary>Hide icon when device disconnected</summary>

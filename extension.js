@@ -15,6 +15,7 @@ export default class SoundcoreBatteryExtension extends Extension {
         this._cancellable = new Gio.Cancellable();
         this._updating = false;
         this._updatePending = false;
+        this._batteryStates = new Map();
         this._indicator = new PanelMenu.Button(0.0, 'Soundcore Battery', false);
         let box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
 
@@ -68,6 +69,12 @@ export default class SoundcoreBatteryExtension extends Extension {
         this._settings.connect('changed::preferred-device', () => {
             this._update();
         });
+        this._settings.connect('changed::low-battery-notifications', () => {
+            this._update();
+        });
+        this._settings.connect('changed::low-battery-threshold', () => {
+            this._update();
+        });
     }
 
     _buildMenu() {
@@ -111,6 +118,42 @@ export default class SoundcoreBatteryExtension extends Extension {
         }
         this._label.set_text(this._formatBattery(battery));
         this._indicator.show();
+    }
+
+    _checkLowBattery(device, battery) {
+        let state = this._batteryStates.get(device.macAddress);
+        if (!state) {
+            state = { levels: {}, notified: false };
+            this._batteryStates.set(device.macAddress, state);
+        }
+        Object.assign(state.levels, battery);
+        const threshold = this._settings.get_int('low-battery-threshold');
+        const low = Object.entries(state.levels).filter(([, value]) => value <= threshold);
+        if (low.length === 0) {
+            state.notified = false;
+            return;
+        }
+        if (state.notified || !this._settings.get_boolean('low-battery-notifications')) return;
+
+        if (!this._batterySource) {
+            const source = new MessageTray.Source({
+                title: 'Soundcore Battery',
+                icon_name: this._iconName ?? 'audio-headphones-symbolic',
+            });
+            source.connect('destroy', () => {
+                if (this._batterySource === source)
+                    this._batterySource = null;
+            });
+            Main.messageTray.add(source);
+            this._batterySource = source;
+        }
+        const labels = { battery: 'Battery', left: 'Left earbud', right: 'Right earbud', case: 'Case' };
+        this._batterySource.addNotification(new MessageTray.Notification({
+            source: this._batterySource,
+            title: `${device.name}: Low battery`,
+            body: low.map(([field, value]) => `${labels[field]}: ${value}%`).join(', '),
+        }));
+        state.notified = true;
     }
 
     // backend
@@ -281,6 +324,7 @@ export default class SoundcoreBatteryExtension extends Extension {
                         || preferred !== this._settings.get_string('preferred-device')) return;
                     if (Object.keys(battery).length > 0) {
                         this._showDevice(device, battery);
+                        this._checkLowBattery(device, battery);
                         return;
                     }
                 } catch (e) {
@@ -336,6 +380,9 @@ export default class SoundcoreBatteryExtension extends Extension {
         this._stopTimer();
         this._cancellable.cancel();
         this._cancellable = null;
+        this._batterySource?.destroy();
+        this._batterySource = null;
+        this._batteryStates = null;
         if (this._dbusConn) {
             this._dbusConn.signal_unsubscribe(this._bluetoothSignal);
             this._dbusConn = null;

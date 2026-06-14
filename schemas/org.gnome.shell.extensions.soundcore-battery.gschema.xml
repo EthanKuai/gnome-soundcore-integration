@@ -14,6 +14,15 @@
       <default>''</default>
       <summary>Preferred device MAC address (empty for automatic selection)</summary>
     </key>
+    <key type="b" name="low-battery-notifications">
+      <default>true</default>
+      <summary>Notify when the displayed device has a low battery</summary>
+    </key>
+    <key type="i" name="low-battery-threshold">
+      <range min="1" max="100"/>
+      <default>20</default>
+      <summary>Low-battery notification threshold in percent</summary>
+    </key>
     <key type="b" name="hide-icon">
       <default>true</default>
       <summary>Hide icon when device disconnected</summary>

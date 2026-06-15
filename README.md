@@ -10,6 +10,8 @@ The indicator uses the first connected device registered with OpenSCQ30 that pro
 
 Open the panel menu to see the device name and each available battery reading, refresh the readings, or open Preferences.
 
+Low-battery notifications are enabled at 20% by default. Change the threshold or disable notifications in Preferences. The displayed device triggers one notification when any battery, including the case, reaches the threshold or is first read below it. Another notification is allowed after all previously observed battery readings rise above the threshold. Disconnecting, switching devices, or temporarily missing a reading does not reset the alert. Alert state lasts until the extension is disabled.
+
 Leave Label Format empty to show the available battery levels automatically. Custom formats support `{battery}` for a single device battery, `{left}`, `{right}`, and `{case}`. Values are percentages; unavailable values show as `-`. For example, use `{battery}%` for headphones or `L:{left}% R:{right}% C:{case}%` for earbuds.
 
 ## Dependencies

@@ -82,5 +82,28 @@ export default class SoundcoreBatteryPreferences extends ExtensionPreferences {
         });
         formatBlankRow.add_suffix(resetBlankButton);
         group.add(formatBlankRow);
+
+        const notificationGroup = new Adw.PreferencesGroup({
+            title: 'Notifications',
+        });
+        page.add(notificationGroup);
+        const notificationRow = new Adw.SwitchRow({
+            title: 'Low-battery notifications',
+            subtitle: 'Notify once when the displayed device reaches the threshold',
+        });
+        settings.bind('low-battery-notifications', notificationRow, 'active', 0);
+        notificationGroup.add(notificationRow);
+        const thresholdRow = new Adw.SpinRow({
+            title: 'Low-battery threshold',
+            subtitle: 'Battery percentage, including the charging case',
+            adjustment: new Gtk.Adjustment({
+                lower: 1,
+                upper: 100,
+                step_increment: 1,
+            }),
+        });
+        settings.bind('low-battery-threshold', thresholdRow, 'value', 0);
+        settings.bind('low-battery-notifications', thresholdRow, 'sensitive', 0);
+        notificationGroup.add(thresholdRow);
     }
 }

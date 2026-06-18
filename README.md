@@ -48,7 +48,7 @@ If on Wayland, log-out & back in. If on X11, run `busctl --user call org.gnome.S
 
 ### Enable
 
-Pair your device over Bluetooth, then register it with OpenSCQ30. Find its model ID with `openscq30-cli list-models` and its MAC address with `bluetoothctl devices`. Register it with `openscq30-cli paired-devices add --mac-address MAC --model MODEL`, replacing `MAC` and `MODEL` with those values.
+Pair your device in Bluetooth settings, then open the extension's Preferences. Under Setup, select the paired Bluetooth device and its model, then click Register. The model list comes from the installed OpenSCQ30 CLI. Registration saves the device as preferred; connect it over Bluetooth to display its battery readings. Use Refresh to reload the device and model lists after pairing another device.
 
 If your CLI is installed as `openscq30`, use that name instead of `openscq30-cli`. The extension accepts either name.
 
